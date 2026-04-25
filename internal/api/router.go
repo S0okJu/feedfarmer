@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/feedfarmer/feedfarmer/internal/ai"
 	"github.com/feedfarmer/feedfarmer/internal/feed"
 	"github.com/feedfarmer/feedfarmer/internal/storage"
 	"github.com/go-chi/chi/v5"
@@ -15,17 +16,18 @@ import (
 type handler struct {
 	db        *storage.DB
 	scheduler *feed.Scheduler
+	aiMgr     *ai.Manager
 }
 
-func NewRouter(db *storage.DB, scheduler *feed.Scheduler, webFS fs.FS) http.Handler {
-	h := &handler{db: db, scheduler: scheduler}
+func NewRouter(db *storage.DB, scheduler *feed.Scheduler, aiMgr *ai.Manager, webFS fs.FS) http.Handler {
+	h := &handler{db: db, scheduler: scheduler, aiMgr: aiMgr}
 
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins: []string{"*"},
-		AllowedMethods: []string{"GET", "POST", "PATCH", "DELETE", "OPTIONS"},
+		AllowedMethods: []string{"GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders: []string{"Accept", "Content-Type"},
 	}))
 
@@ -40,6 +42,14 @@ func NewRouter(db *storage.DB, scheduler *feed.Scheduler, webFS fs.FS) http.Hand
 			r.Get("/", h.listItems)
 			r.Get("/{id}", h.getItem)
 			r.Patch("/{id}", h.updateItem)
+			r.Post("/{id}/tag", h.tagItem)
+			r.Post("/{id}/summarize", h.summarizeItem)
+		})
+		r.Route("/ai/configs", func(r chi.Router) {
+			r.Get("/", h.listAIConfigs)
+			r.Post("/", h.createAIConfig)
+			r.Delete("/{id}", h.deleteAIConfig)
+			r.Put("/{id}/activate", h.activateAIConfig)
 		})
 	})
 

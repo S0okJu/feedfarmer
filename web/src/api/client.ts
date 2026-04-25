@@ -1,4 +1,4 @@
-import type { Feed, Item, ItemsParams } from '../types'
+import type { AIConfig, Feed, Item, ItemsParams } from '../types'
 
 async function req<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -49,5 +49,24 @@ export const api = {
         method: 'PATCH',
         body: JSON.stringify(data),
       }),
+
+    summarize: (id: string) =>
+      req<Item>(`/api/items/${id}/summarize`, { method: 'POST' }),
+  },
+
+  aiConfigs: {
+    list: () => req<AIConfig[]>('/api/ai/configs'),
+
+    create: (data: { name: string; provider: string; base_url: string; model: string; is_active: boolean }) =>
+      req<AIConfig>('/api/ai/configs', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    delete: (id: string) =>
+      req<null>(`/api/ai/configs/${id}`, { method: 'DELETE' }),
+
+    activate: (id: string) =>
+      req<{ status: string }>(`/api/ai/configs/${id}/activate`, { method: 'PUT' }),
   },
 }

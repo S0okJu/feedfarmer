@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Bookmark, BookmarkCheck, Eye, EyeOff, ExternalLink, RefreshCw, Search } from 'lucide-react'
+import { AlertCircle, Bookmark, BookmarkCheck, Eye, EyeOff, ExternalLink, Loader2, RefreshCw, Search, Sparkles } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { api } from '../api/client'
@@ -165,6 +165,20 @@ function ItemCard({
   onToggleRead: () => void
   onToggleBookmark: () => void
 }) {
+  const qc = useQueryClient()
+  const [showSummary, setShowSummary] = useState(false)
+
+  const summarize = useMutation({
+    mutationFn: () => api.items.summarize(item.id),
+    onSuccess: (updated) => {
+      qc.setQueriesData<Item[]>({ queryKey: ['items'] }, (prev) =>
+        prev?.map((it) => (it.id === item.id ? { ...it, ai_summary: updated.ai_summary } : it))
+      )
+      qc.invalidateQueries({ queryKey: ['items'] })
+      setShowSummary(true)
+    },
+  })
+
   const excerpt = stripHTML(item.content).slice(0, 200)
 
   return (
@@ -211,26 +225,46 @@ function ItemCard({
           )}
 
           {/* AI Summary */}
-          {item.ai_summary && (
-            <div className="mt-2 px-3 py-2 bg-indigo-50 border border-indigo-100 rounded-lg text-xs text-indigo-700 leading-relaxed">
-              <span className="font-semibold">AI: </span>
-              {item.ai_summary}
-            </div>
-          )}
+          <div className="mt-2 space-y-1">
+            <button
+              onClick={() => {
+                if (item.ai_summary) {
+                  setShowSummary((v) => !v)
+                } else if (!summarize.isPending) {
+                  summarize.mutate()
+                }
+              }}
+              className={[
+                'flex items-center gap-1.5 text-xs transition-colors disabled:opacity-50',
+                item.ai_summary
+                  ? 'text-indigo-500 hover:text-indigo-700'
+                  : 'text-zinc-400 hover:text-indigo-600',
+              ].join(' ')}
+            >
+              {summarize.isPending ? (
+                <Loader2 size={12} className="animate-spin" />
+              ) : (
+                <Sparkles size={12} />
+              )}
+              {summarize.isPending
+                ? '요약 중…'
+                : item.ai_summary
+                  ? showSummary ? 'AI 요약 닫기' : 'AI 요약 보기'
+                  : 'AI 요약'}
+            </button>
+            {summarize.isError && (
+              <div className="flex items-center gap-1 text-xs text-red-500">
+                <AlertCircle size={11} />
+                {(summarize.error as Error)?.message || 'AI 요약 실패'}
+              </div>
+            )}
+            {item.ai_summary && showSummary && (
+              <div className="px-3 py-2 bg-indigo-50 border border-indigo-100 rounded-lg text-xs text-indigo-700 leading-relaxed">
+                {item.ai_summary}
+              </div>
+            )}
+          </div>
 
-          {/* Tags */}
-          {item.ai_tags.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-2">
-              {item.ai_tags.map((tag) => (
-                <span
-                  key={tag}
-                  className="px-2 py-0.5 bg-zinc-100 text-zinc-500 text-xs rounded-full"
-                >
-                  {tag}
-                </span>
-              ))}
-            </div>
-          )}
         </div>
 
         {/* Actions */}

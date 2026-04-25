@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/feedfarmer/feedfarmer/internal/ai"
 	"github.com/feedfarmer/feedfarmer/internal/api"
 	"github.com/feedfarmer/feedfarmer/internal/feed"
 	"github.com/feedfarmer/feedfarmer/internal/storage"
@@ -33,7 +34,9 @@ func main() {
 	}
 	defer db.Close()
 
-	scheduler := feed.NewScheduler(db)
+	aiMgr := ai.NewManager(db)
+
+	scheduler := feed.NewScheduler(db, aiMgr)
 	scheduler.Start()
 	defer scheduler.Stop()
 
@@ -42,7 +45,7 @@ func main() {
 		log.Fatal("embed fs:", err)
 	}
 
-	router := api.NewRouter(db, scheduler, distFS)
+	router := api.NewRouter(db, scheduler, aiMgr, distFS)
 
 	port := os.Getenv("PORT")
 	if port == "" {

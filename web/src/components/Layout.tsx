@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { Layers, Rss } from 'lucide-react'
+import { Layers, Rss, Settings } from 'lucide-react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { api } from '../api/client'
 import type { Feed } from '../types'
@@ -39,6 +39,10 @@ export function Layout() {
           <NavLink to="/feeds" className={navClass}>
             <Rss size={16} />
             Manage Feeds
+          </NavLink>
+          <NavLink to="/settings" className={navClass}>
+            <Settings size={16} />
+            Settings
           </NavLink>
         </nav>
 

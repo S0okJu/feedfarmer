@@ -6,17 +6,19 @@ import (
 	"log"
 	"time"
 
+	"github.com/feedfarmer/feedfarmer/internal/ai"
 	"github.com/feedfarmer/feedfarmer/internal/storage"
 	"github.com/google/uuid"
 	"github.com/mmcdole/gofeed"
 )
 
 type Fetcher struct {
-	db *storage.DB
+	db      *storage.DB
+	aiMgr   *ai.Manager
 }
 
-func NewFetcher(db *storage.DB) *Fetcher {
-	return &Fetcher{db: db}
+func NewFetcher(db *storage.DB, aiMgr *ai.Manager) *Fetcher {
+	return &Fetcher{db: db, aiMgr: aiMgr}
 }
 
 func (f *Fetcher) Fetch(ctx context.Context, feedID, url string) error {
@@ -52,8 +54,20 @@ func (f *Fetcher) Fetch(ctx context.Context, feedID, url string) error {
 			PublishedAt: publishedAt,
 			AITags:      []string{},
 		}
-		if err := f.db.UpsertItem(item); err != nil {
+
+		inserted, err := f.db.UpsertItem(item)
+		if err != nil {
 			log.Printf("upsert %s: %v", entry.Link, err)
+			continue
+		}
+
+		// Tag only newly inserted items in the background.
+		if inserted {
+			go func(id, title, text string) {
+				if err := f.aiMgr.TagItem(context.Background(), id, title, text); err != nil {
+					log.Printf("ai tag %s: %v", id, err)
+				}
+			}(item.ID, item.Title, item.Content)
 		}
 	}
 

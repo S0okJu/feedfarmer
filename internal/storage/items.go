@@ -21,15 +21,19 @@ type Item struct {
 	CreatedAt    time.Time  `json:"created_at"`
 }
 
-// UpsertItem inserts a new item; silently skips on duplicate link.
-func (db *DB) UpsertItem(item *Item) error {
-	_, err := db.Exec(
+// UpsertItem inserts a new item; returns true if a new row was inserted (false = duplicate).
+func (db *DB) UpsertItem(item *Item) (bool, error) {
+	result, err := db.Exec(
 		`INSERT INTO items (id, feed_id, title, link, content, published_at)
 		 VALUES (?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(link) DO NOTHING`,
 		item.ID, item.FeedID, item.Title, item.Link, item.Content, item.PublishedAt,
 	)
-	return err
+	if err != nil {
+		return false, err
+	}
+	n, _ := result.RowsAffected()
+	return n > 0, nil
 }
 
 type ItemFilter struct {
@@ -133,3 +137,20 @@ func (db *DB) UpdateItem(id string, isRead, isBookmarked bool) error {
 	)
 	return err
 }
+
+// UpdateItemSummary saves an AI-generated summary for an item.
+func (db *DB) UpdateItemSummary(id, summary string) error {
+	_, err := db.Exec(`UPDATE items SET ai_summary = ? WHERE id = ?`, summary, id)
+	return err
+}
+
+// UpdateItemAI saves AI-generated tags for an item.
+func (db *DB) UpdateItemAI(id string, tags []string) error {
+	tagsJSON, err := json.Marshal(tags)
+	if err != nil {
+		return err
+	}
+	_, err = db.Exec(`UPDATE items SET ai_tags = ? WHERE id = ?`, string(tagsJSON), id)
+	return err
+}
+
