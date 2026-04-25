@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/feedfarmer/feedfarmer/internal/ai"
 	"github.com/feedfarmer/feedfarmer/internal/storage"
 )
 
@@ -16,10 +17,10 @@ type Scheduler struct {
 	wg      sync.WaitGroup
 }
 
-func NewScheduler(db *storage.DB) *Scheduler {
+func NewScheduler(db *storage.DB, aiMgr *ai.Manager) *Scheduler {
 	return &Scheduler{
 		db:      db,
-		fetcher: NewFetcher(db),
+		fetcher: NewFetcher(db, aiMgr),
 		stop:    make(chan struct{}),
 	}
 }

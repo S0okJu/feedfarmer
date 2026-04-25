@@ -25,6 +25,16 @@ export interface Item {
   created_at: string
 }
 
+export interface AIConfig {
+  id: string
+  name: string
+  provider: string
+  base_url: string
+  model: string
+  is_active: boolean
+  created_at: string
+}
+
 export interface ItemsParams {
   feedId?: string
   unread?: boolean

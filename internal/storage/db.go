@@ -53,6 +53,15 @@ func migrate(db *sql.DB) error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_items_feed_id   ON items(feed_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_items_published ON items(published_at DESC)`,
+		`CREATE TABLE IF NOT EXISTS ai_configs (
+			id         TEXT PRIMARY KEY,
+			name       TEXT NOT NULL DEFAULT '',
+			provider   TEXT NOT NULL DEFAULT 'ollama',
+			base_url   TEXT NOT NULL DEFAULT '',
+			model      TEXT NOT NULL DEFAULT '',
+			is_active  INTEGER NOT NULL DEFAULT 1,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`,
 	}
 	for _, stmt := range stmts {
 		if _, err := db.Exec(stmt); err != nil {

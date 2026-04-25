@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+
 func (h *handler) listItems(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	limit, _ := strconv.Atoi(q.Get("limit"))
@@ -41,6 +42,24 @@ func (h *handler) getItem(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
+	jsonOK(w, item)
+}
+
+func (h *handler) summarizeItem(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	item, err := h.db.GetItem(id)
+	if err != nil || item == nil {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+
+	summary, err := h.aiMgr.SummarizeItem(r.Context(), item.ID, item.Link)
+	if err != nil {
+		httpError(w, err, 500)
+		return
+	}
+
+	item.AISummary = summary
 	jsonOK(w, item)
 }
 
