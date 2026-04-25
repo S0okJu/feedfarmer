@@ -1,0 +1,14 @@
+services:
+  feedfarmer:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - feedfarmer_data:/data
+    environment:
+      DB_PATH: /data/feedfarmer.db
+      PORT: "8080"
+    restart: unless-stopped
+
+volumes:
+  feedfarmer_data:

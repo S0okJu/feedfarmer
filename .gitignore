@@ -1,0 +1,11 @@
+# Go
+feedfarmer
+data/
+
+# Web
+web/node_modules/
+web/dist/assets/
+
+# Misc
+.env
+.DS_Store
