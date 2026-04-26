@@ -1,0 +1,9 @@
+# Common VCS and editor files
+.DS_Store
+.git/
+.gitignore
+.idea/
+.vscode/
+
+# CI/CD files
+.github/

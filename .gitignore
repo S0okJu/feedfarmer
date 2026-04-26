@@ -1,5 +1,5 @@
 # Go
-feedfarmer
+/feedfarmer
 data/
 
 # Web
@@ -9,3 +9,5 @@ web/dist/assets/
 # Misc
 .env
 .DS_Store
+
+.claude/
