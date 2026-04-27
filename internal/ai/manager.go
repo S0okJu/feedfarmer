@@ -2,7 +2,6 @@ package ai
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	readability "github.com/go-shiori/go-readability"
@@ -25,7 +24,11 @@ func (m *Manager) activeProvider() (Provider, error) {
 		return nil, err
 	}
 	if cfg == nil {
-		return nil, fmt.Errorf("no active AI config")
+		return nil, &Error{
+			Kind:         ErrNoActiveConfig,
+			Op:           "ai.manager.activeProvider",
+			PublicReason: "no active AI configuration",
+		}
 	}
 	return &OllamaProvider{BaseURL: cfg.BaseURL, Model: cfg.Model}, nil
 }
@@ -39,7 +42,12 @@ func (m *Manager) SummarizeItem(ctx context.Context, itemID, link string) (strin
 
 	article, err := readability.FromURL(link, 30*time.Second)
 	if err != nil {
-		return "", fmt.Errorf("fetch article: %w", err)
+		return "", &Error{
+			Kind:         ErrArticleFetch,
+			Op:           "ai.manager.summarize.fetchArticle",
+			PublicReason: "failed to fetch article content",
+			Err:          err,
+		}
 	}
 
 	content := article.TextContent
