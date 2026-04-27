@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 )
@@ -45,31 +46,69 @@ func (p *OllamaProvider) Tag(ctx context.Context, title, text string) ([]string,
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, p.BaseURL+"/chat", bytes.NewReader(reqBody))
 	if err != nil {
-		return nil, err
+		return nil, &Error{
+			Kind:         ErrRequestBuild,
+			Op:           "ai.ollama.tag.newRequest",
+			PublicReason: "failed to build model request",
+			Err:          err,
+		}
 	}
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("request failed: %w", err)
+		return nil, &Error{
+			Kind:         ErrRequestFailed,
+			Op:           "ai.ollama.tag.doRequest",
+			PublicReason: "failed to contact model server",
+			Err:          err,
+		}
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		msg := strings.TrimSpace(string(body))
+		if msg == "" {
+			msg = http.StatusText(resp.StatusCode)
+		}
+		return nil, &Error{
+			Kind:         ErrUpstreamStatus,
+			Op:           "ai.ollama.tag.upstreamStatus",
+			StatusCode:   resp.StatusCode,
+			PublicReason: fmt.Sprintf("model server returned %d: %s", resp.StatusCode, msg),
+		}
+	}
+
 	var result ollamaChatResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, fmt.Errorf("decode response: %w", err)
+		return nil, &Error{
+			Kind:         ErrResponseParse,
+			Op:           "ai.ollama.tag.decodeResponse",
+			PublicReason: "failed to parse model response",
+			Err:          err,
+		}
 	}
 
 	raw := strings.TrimSpace(result.Message.Content)
 	start := strings.Index(raw, "[")
 	end := strings.LastIndex(raw, "]")
 	if start == -1 || end <= start {
-		return nil, fmt.Errorf("no JSON array in AI response: %.100s", raw)
+		return nil, &Error{
+			Kind:         ErrInvalidResponse,
+			Op:           "ai.ollama.tag.invalidResponse",
+			PublicReason: fmt.Sprintf("model response format invalid: %.100s", raw),
+		}
 	}
 
 	var tags []string
 	if err := json.Unmarshal([]byte(raw[start:end+1]), &tags); err != nil {
-		return nil, fmt.Errorf("parse tags JSON: %w", err)
+		return nil, &Error{
+			Kind:         ErrResponseParse,
+			Op:           "ai.ollama.tag.parseTags",
+			PublicReason: "failed to parse tags from model response",
+			Err:          err,
+		}
 	}
 	return tags, nil
 }
@@ -87,22 +126,60 @@ func (p *OllamaProvider) Summarize(ctx context.Context, content string) (string,
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, p.BaseURL+"/chat", bytes.NewReader(reqBody))
 	if err != nil {
-		return "", err
+		return "", &Error{
+			Kind:         ErrRequestBuild,
+			Op:           "ai.ollama.summarize.newRequest",
+			PublicReason: "failed to build model request",
+			Err:          err,
+		}
 	}
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("request failed: %w", err)
+		return "", &Error{
+			Kind:         ErrRequestFailed,
+			Op:           "ai.ollama.summarize.doRequest",
+			PublicReason: "failed to contact model server",
+			Err:          err,
+		}
 	}
 	defer resp.Body.Close()
 
-	var result ollamaChatResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", fmt.Errorf("decode response: %w", err)
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		msg := strings.TrimSpace(string(body))
+		if msg == "" {
+			msg = http.StatusText(resp.StatusCode)
+		}
+		return "", &Error{
+			Kind:         ErrUpstreamStatus,
+			Op:           "ai.ollama.summarize.upstreamStatus",
+			StatusCode:   resp.StatusCode,
+			PublicReason: fmt.Sprintf("model server returned %d: %s", resp.StatusCode, msg),
+		}
 	}
 
-	return strings.TrimSpace(result.Message.Content), nil
+	var result ollamaChatResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", &Error{
+			Kind:         ErrResponseParse,
+			Op:           "ai.ollama.summarize.decodeResponse",
+			PublicReason: "failed to parse model response",
+			Err:          err,
+		}
+	}
+
+	summary := strings.TrimSpace(result.Message.Content)
+	if summary == "" {
+		return "", &Error{
+			Kind:         ErrInvalidResponse,
+			Op:           "ai.ollama.summarize.emptyResponse",
+			PublicReason: "model returned empty summary",
+		}
+	}
+
+	return summary, nil
 }
 
 func truncate(s string, n int) string {
