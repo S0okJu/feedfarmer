@@ -5,10 +5,10 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/feedfarmer/feedfarmer/internal/ai"
 	"github.com/feedfarmer/feedfarmer/internal/storage"
 	"github.com/go-chi/chi/v5"
 )
-
 
 func (h *handler) listItems(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
@@ -55,7 +55,7 @@ func (h *handler) summarizeItem(w http.ResponseWriter, r *http.Request) {
 
 	summary, err := h.aiMgr.SummarizeItem(r.Context(), item.ID, item.Link)
 	if err != nil {
-		httpError(w, err, 500)
+		httpError(w, err, summarizeErrorStatus(err))
 		return
 	}
 
@@ -97,4 +97,37 @@ func (h *handler) updateItem(w http.ResponseWriter, r *http.Request) {
 	item.IsRead = isRead
 	item.IsBookmarked = isBookmarked
 	jsonOK(w, item)
+}
+
+func summarizeErrorStatus(err error) int {
+	aiErr, ok := ai.AsError(err)
+	if !ok {
+		return http.StatusInternalServerError
+	}
+
+	switch aiErr.Kind {
+	case ai.ErrNoActiveConfig:
+		return http.StatusServiceUnavailable
+	case ai.ErrArticleFetch:
+		return http.StatusBadGateway
+	case ai.ErrRequestBuild:
+		return http.StatusInternalServerError
+	case ai.ErrRequestFailed:
+		return http.StatusBadGateway
+	case ai.ErrUpstreamStatus:
+		if aiErr.StatusCode == http.StatusTooManyRequests {
+			return http.StatusTooManyRequests
+		}
+		if aiErr.StatusCode >= 500 {
+			return http.StatusBadGateway
+		}
+		if aiErr.StatusCode >= 400 {
+			return http.StatusBadRequest
+		}
+		return http.StatusBadGateway
+	case ai.ErrInvalidResponse, ai.ErrResponseParse:
+		return http.StatusBadGateway
+	default:
+		return http.StatusInternalServerError
+	}
 }
