@@ -44,11 +44,50 @@ export function Dashboard() {
   })
 
   const qc = useQueryClient()
+  const [summarizingIds, setSummarizingIds] = useState<Set<string>>(new Set())
+  const [summarizeErrors, setSummarizeErrors] = useState<Record<string, string>>({})
 
   const updateItem = useMutation({
     mutationFn: ({ id, data }: { id: string; data: { is_read?: boolean; is_bookmarked?: boolean } }) =>
       api.items.update(id, data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['items'] }),
+  })
+
+  const summarizeItem = useMutation({
+    mutationFn: (id: string) => api.items.summarize(id),
+    onMutate: (id) => {
+      setSummarizingIds((prev) => {
+        const next = new Set(prev)
+        next.add(id)
+        return next
+      })
+      setSummarizeErrors((prev) => {
+        if (!prev[id]) return prev
+        const next = { ...prev }
+        delete next[id]
+        return next
+      })
+    },
+    onSuccess: (updated, id) => {
+      qc.setQueriesData<Item[]>({ queryKey: ['items'] }, (prev) =>
+        prev?.map((it) => (it.id === id ? { ...it, ai_summary: updated.ai_summary } : it))
+      )
+      qc.invalidateQueries({ queryKey: ['items'] })
+    },
+    onError: (err, id) => {
+      setSummarizeErrors((prev) => ({
+        ...prev,
+        [id]: (err as Error)?.message || 'AI 요약 실패',
+      }))
+    },
+    onSettled: (_data, _error, id) => {
+      setSummarizingIds((prev) => {
+        if (!prev.has(id)) return prev
+        const next = new Set(prev)
+        next.delete(id)
+        return next
+      })
+    },
   })
 
   const selectedFeed = feeds.find((f) => f.id === feedId)
@@ -142,6 +181,9 @@ export function Dashboard() {
             <ItemCard
               key={item.id}
               item={item}
+              isSummarizing={summarizingIds.has(item.id)}
+              summarizeError={summarizeErrors[item.id]}
+              onSummarize={() => summarizeItem.mutate(item.id)}
               onToggleRead={() =>
                 updateItem.mutate({ id: item.id, data: { is_read: !item.is_read } })
               }
@@ -158,26 +200,20 @@ export function Dashboard() {
 
 function ItemCard({
   item,
+  isSummarizing,
+  summarizeError,
+  onSummarize,
   onToggleRead,
   onToggleBookmark,
 }: {
   item: Item
+  isSummarizing: boolean
+  summarizeError?: string
+  onSummarize: () => void
   onToggleRead: () => void
   onToggleBookmark: () => void
 }) {
-  const qc = useQueryClient()
   const [showSummary, setShowSummary] = useState(false)
-
-  const summarize = useMutation({
-    mutationFn: () => api.items.summarize(item.id),
-    onSuccess: (updated) => {
-      qc.setQueriesData<Item[]>({ queryKey: ['items'] }, (prev) =>
-        prev?.map((it) => (it.id === item.id ? { ...it, ai_summary: updated.ai_summary } : it))
-      )
-      qc.invalidateQueries({ queryKey: ['items'] })
-      setShowSummary(true)
-    },
-  })
 
   const excerpt = stripHTML(item.content).slice(0, 200)
 
@@ -230,10 +266,11 @@ function ItemCard({
               onClick={() => {
                 if (item.ai_summary) {
                   setShowSummary((v) => !v)
-                } else if (!summarize.isPending) {
-                  summarize.mutate()
+                } else if (!isSummarizing) {
+                  onSummarize()
                 }
               }}
+              disabled={isSummarizing}
               className={[
                 'flex items-center gap-1.5 text-xs transition-colors disabled:opacity-50',
                 item.ai_summary
@@ -241,21 +278,21 @@ function ItemCard({
                   : 'text-zinc-400 hover:text-indigo-600',
               ].join(' ')}
             >
-              {summarize.isPending ? (
+              {isSummarizing ? (
                 <Loader2 size={12} className="animate-spin" />
               ) : (
                 <Sparkles size={12} />
               )}
-              {summarize.isPending
+              {isSummarizing
                 ? '요약 중…'
                 : item.ai_summary
                   ? showSummary ? 'AI 요약 닫기' : 'AI 요약 보기'
                   : 'AI 요약'}
             </button>
-            {summarize.isError && (
+            {summarizeError && (
               <div className="flex items-center gap-1 text-xs text-red-500">
                 <AlertCircle size={11} />
-                {(summarize.error as Error)?.message || 'AI 요약 실패'}
+                {summarizeError}
               </div>
             )}
             {item.ai_summary && showSummary && (
