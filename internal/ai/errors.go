@@ -63,3 +63,26 @@ func AsError(err error) (*Error, bool) {
 	}
 	return aiErr, true
 }
+
+func (e *Error) LogAttrs() []any {
+	if e == nil {
+		return nil
+	}
+
+	attrs := []any{
+		"error_kind", string(e.Kind),
+	}
+	if e.Op != "" {
+		attrs = append(attrs, "op", e.Op)
+	}
+	if e.StatusCode > 0 {
+		attrs = append(attrs, "status_code", e.StatusCode)
+	}
+	if e.PublicReason != "" {
+		attrs = append(attrs, "public_reason", e.PublicReason)
+	}
+	if e.Err != nil {
+		attrs = append(attrs, "cause", e.Err.Error())
+	}
+	return attrs
+}
