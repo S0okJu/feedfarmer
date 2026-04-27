@@ -23,6 +23,7 @@ func NewRouter(db *storage.DB, scheduler *feed.Scheduler, aiMgr *ai.Manager, web
 	h := &handler{db: db, scheduler: scheduler, aiMgr: aiMgr}
 
 	r := chi.NewRouter()
+	r.Use(middleware.RequestID)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(cors.Handler(cors.Options{
